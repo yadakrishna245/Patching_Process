@@ -10,6 +10,7 @@
 [![Chef](https://img.shields.io/badge/Chef-Infrastructure-F09820.svg)](https://www.chef.io/)
 [![Satellite](https://img.shields.io/badge/Red%20Hat-Satellite-CC0000.svg)](https://www.redhat.com/en/technologies/management/satellite)
 [![Servers](https://img.shields.io/badge/Scale-2000%2B%20Servers-blue.svg)]()
+[![VMware](https://img.shields.io/badge/VMware-vCenter%20Ready-607078.svg)](https://www.vmware.com/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
 
 <br/>
@@ -18,7 +19,7 @@
 
 **A comprehensive, battle-tested enterprise patching runbook designed for large-scale Linux infrastructure operations.**
 
-[📖 Read the Runbook](./Enterprise_Linux_Patching_Runbook.md) · [🐛 Report Issue](https://github.com/yadakrishna245/Patching_Process/issues) · [💡 Request Feature](https://github.com/yadakrishna245/Patching_Process/issues)
+[📖 Read the Runbook](./Enterprise_Linux_Patching_Runbook.md) · [🖥️ VMware VM Guide](./VMware_VM_Patching_Guide.md) · [🐛 Report Issue](https://github.com/yadakrishna245/Patching_Process/issues) · [💡 Request Feature](https://github.com/yadakrishna245/Patching_Process/issues)
 
 </div>
 
@@ -258,6 +259,7 @@ Patching_Process/
 │
 ├── 📄 README.md                              ← You are here
 ├── 📖 Enterprise_Linux_Patching_Runbook.md   ← Complete Runbook (150+ pages)
+├── 🖥️ VMware_VM_Patching_Guide.md            ← VMware/vCenter VM Patching Guide
 │
 └── (Future additions)
     ├── 📁 ansible/                           ← Ansible playbooks
