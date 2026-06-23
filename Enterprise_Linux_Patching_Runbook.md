@@ -9,7 +9,7 @@
 | **Document Title** | Enterprise Linux Patching Runbook |
 | **Version** | 3.0 |
 | **Classification** | INTERNAL – CONFIDENTIAL |
-| **Author** | Senior Linux Infrastructure Team |
+| **Author** | Krishna Yada | Senior Linux Infrastructure Team |
 | **Last Updated** | June 2026 |
 | **Review Cycle** | Quarterly |
 | **Applicable OS** | RHEL 6, 7, 8, 9, 10 / CentOS 7, 8 Stream, 9 Stream / Oracle Linux / Rocky Linux / AlmaLinux |
