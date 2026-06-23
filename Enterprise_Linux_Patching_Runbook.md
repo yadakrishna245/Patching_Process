@@ -1079,6 +1079,59 @@ curl -s http://localhost:<port>/api/health | python3 -m json.tool
 
 # Section 4 – Patching Using Red Hat Satellite
 
+> 🚨 **WHERE DO SATELLITE COMMANDS RUN?**
+>
+> ```
+> ╔══════════════════════════════════════════════════════════════════════════════╗
+> ║                                                                              ║
+> ║   SATELLITE COMMANDS RUN FROM TWO PLACES:                                   ║
+> ║                                                                              ║
+> ║   1. SATELLITE SERVER (e.g., satellite.corp.com)                            ║
+> ║      → hammer commands, content management, sync, publish, promote          ║
+> ║      → Requires: RHEL 8 (minimum), 4 CPU, 20GB RAM, 500GB+ storage        ║
+> ║                                                                              ║
+> ║   2. TARGET HOST (managed client)                                           ║
+> ║      → subscription-manager, yum/dnf update, needs-restarting              ║
+> ║      → These are the 2000 servers you are patching                         ║
+> ║                                                                              ║
+> ╚══════════════════════════════════════════════════════════════════════════════╝
+> ```
+
+### Satellite Server Installation Requirements
+
+| Requirement | Minimum | Recommended (2000 nodes) |
+|-------------|---------|--------------------------|
+| OS | RHEL 8.x or 9.x | RHEL 8.x (most tested) |
+| CPU | 4 cores | 8+ cores |
+| RAM | 20 GB | 32+ GB |
+| /var/lib/pulp | 500 GB | 1+ TB (content storage) |
+| /var/lib/pgsql | 20 GB | 100 GB (database) |
+| Network | 10 Mbps | 1 Gbps |
+
+**`[Run on: Satellite Server - e.g., satellite.corp.com]`**
+
+```bash
+# Install Red Hat Satellite (requires valid Satellite subscription)
+# Step 1: Register and enable repos
+subscription-manager register
+subscription-manager repos --enable=rhel-8-for-x86_64-baseos-rpms \
+  --enable=rhel-8-for-x86_64-appstream-rpms \
+  --enable=satellite-6.15-for-rhel-8-x86_64-rpms \
+  --enable=satellite-maintenance-6.15-for-rhel-8-x86_64-rpms
+
+# Step 2: Install Satellite packages
+dnf install satellite -y
+
+# Step 3: Run the installer
+satellite-installer --scenario satellite \
+  --foreman-initial-admin-username admin \
+  --foreman-initial-admin-password 'SecurePassword123!' \
+  --foreman-proxy-dns true \
+  --foreman-proxy-dhcp true
+```
+
+---
+
 ## 4.1 Red Hat Satellite Architecture
 
 ```
@@ -1131,6 +1184,7 @@ curl -s http://localhost:<port>/api/health | python3 -m json.tool
 A Content View is a curated set of repositories that defines what packages are available to hosts. This allows you to control exactly which patches reach each environment.
 
 ```bash
+# [Run on: Satellite Server - e.g., satellite.corp.com]
 # List Content Views
 hammer content-view list --organization "My Org"
 
@@ -1145,6 +1199,7 @@ hammer content-view list --organization "My Org"
 
 ### Lifecycle Environments
 ```bash
+# [Run on: Satellite Server - e.g., satellite.corp.com]
 # List Lifecycle Environments
 hammer lifecycle-environment list --organization "My Org"
 
@@ -1161,6 +1216,7 @@ hammer lifecycle-environment list --organization "My Org"
 
 ### Activation Keys
 ```bash
+# [Run on: Satellite Server - e.g., satellite.corp.com]
 # List Activation Keys
 hammer activation-key list --organization "My Org"
 
@@ -1175,6 +1231,7 @@ hammer activation-key list --organization "My Org"
 
 ### Host Collections
 ```bash
+# [Run on: Satellite Server - e.g., satellite.corp.com]
 # List Host Collections
 hammer host-collection list --organization "My Org"
 
@@ -1192,6 +1249,7 @@ hammer host-collection list --organization "My Org"
 ### Step 1: Synchronize Repositories
 
 ```bash
+# [Run on: Satellite Server - e.g., satellite.corp.com]
 # Sync all repositories
 hammer product synchronize --organization "My Org" --name "Red Hat Enterprise Linux 8"
 
@@ -1212,6 +1270,7 @@ hammer repository info --organization "My Org" --product "Red Hat Enterprise Lin
 ### Step 2: Publish Content View
 
 ```bash
+# [Run on: Satellite Server - e.g., satellite.corp.com]
 # Publish new version of Content View
 hammer content-view publish \
   --organization "My Org" \
@@ -1234,6 +1293,7 @@ hammer content-view version list \
 ### Step 3: Promote to Development
 
 ```bash
+# [Run on: Satellite Server - e.g., satellite.corp.com]
 # Promote to Development environment
 hammer content-view version promote \
   --organization "My Org" \
@@ -1252,6 +1312,7 @@ hammer content-view version list \
 ### Step 4: Register Host to Satellite (if not already registered)
 
 ```bash
+# [Run on: Target Host (managed client) - the server being registered]
 # On the client host:
 # RHEL 8/9 registration
 curl -sS --insecure https://satellite.corp.com/register \
@@ -1287,6 +1348,7 @@ subscription-manager status
 ### Step 5: Verify Subscription and Repository
 
 ```bash
+# [Run on: Target Host (managed client)]
 # Check subscription status
 subscription-manager list --consumed
 
@@ -1307,6 +1369,7 @@ yum repolist -v 2>/dev/null | grep "Repo-baseurl"
 ### Step 6: Check Available Errata
 
 ```bash
+# [Run on: Satellite Server - e.g., satellite.corp.com]
 # From Satellite (hammer):
 hammer host errata list --host webserver01.corp.com
 
@@ -1328,6 +1391,7 @@ yum updateinfo list security | wc -l
 ### Step 7: Apply Patches
 
 ```bash
+# [Run on: Satellite Server - for hammer commands; OR Target Host - for yum commands]
 # Apply all available errata (from Satellite):
 hammer host errata apply \
   --host webserver01.corp.com \
@@ -1722,7 +1786,329 @@ rpm -q <package_name>
 
 # Section 6 – Patching Using Ansible
 
-## 6.1 Ansible Architecture for Enterprise Patching
+## 6.1 Ansible Setup & Installation (START HERE)
+
+> 🚨🚨🚨 **CRITICAL: WHERE DOES ANSIBLE RUN FROM?** 🚨🚨🚨
+>
+> ```
+> ╔══════════════════════════════════════════════════════════════════════════════╗
+> ║                                                                              ║
+> ║   ANSIBLE RUNS FROM A SINGLE CONTROL NODE (MASTER NODE)                     ║
+> ║                                                                              ║
+> ║   • Ansible is ONLY installed on the CONTROL NODE                           ║
+> ║   • The control node pushes commands to managed nodes via SSH               ║
+> ║   • Managed nodes (target servers) do NOT need Ansible installed            ║
+> ║   • The control node MUST be a Linux/Unix machine (NOT Windows)             ║
+> ║                                                                              ║
+> ║   Example Control Node: ansible-master.company.com                          ║
+> ║   Example Control Node: 10.0.0.100 (your Ansible server)                   ║
+> ║                                                                              ║
+> ║   ALL ansible-playbook and ansible commands below run on this machine!      ║
+> ║                                                                              ║
+> ╚══════════════════════════════════════════════════════════════════════════════╝
+> ```
+
+---
+
+### 6.1.1 Installing Ansible on the Control Node
+
+> ⚠️ **IMPORTANT**: Install Ansible ONLY on the control node. Do NOT install Ansible on the 2000 managed (target) servers.
+
+**`[Run on: Ansible Control Node - e.g., ansible-master.company.com]`**
+
+```bash
+# ═══════════════════════════════════════════════════════════
+# RHEL 7 / CentOS 7
+# ═══════════════════════════════════════════════════════════
+sudo yum install epel-release && sudo yum install ansible
+
+# ═══════════════════════════════════════════════════════════
+# RHEL 8
+# ═══════════════════════════════════════════════════════════
+sudo dnf install ansible-core
+
+# ═══════════════════════════════════════════════════════════
+# RHEL 9 / RHEL 10
+# ═══════════════════════════════════════════════════════════
+sudo dnf install ansible-core
+
+# ═══════════════════════════════════════════════════════════
+# Ubuntu 22.04 / Ubuntu 24.04
+# ═══════════════════════════════════════════════════════════
+sudo apt update && sudo apt install ansible
+
+# ═══════════════════════════════════════════════════════════
+# CentOS 7
+# ═══════════════════════════════════════════════════════════
+sudo yum install epel-release && sudo yum install ansible
+```
+
+**Verify Installation:**
+
+**`[Run on: Ansible Control Node - e.g., ansible-master.company.com]`**
+
+```bash
+ansible --version
+# Expected Output:
+# ansible [core 2.15.x]
+#   config file = /etc/ansible/ansible.cfg
+#   configured module search path = ['/root/.ansible/plugins/modules']
+#   ansible python module location = /usr/lib/python3.x/site-packages/ansible
+#   python version = 3.x.x
+```
+
+---
+
+### 6.1.2 Ansible Directory Structure & File Paths
+
+> 📘 **BEGINNER NOTE**: All these directories and files exist ONLY on the Ansible Control Node. Create them on your Ansible master server.
+
+**`[Run on: Ansible Control Node - e.g., ansible-master.company.com]`**
+
+```
+Ansible Control Node Directory Structure:
+══════════════════════════════════════════
+
+/etc/ansible/                          ← Default Ansible config directory
+├── ansible.cfg                        ← Main Ansible configuration file
+├── hosts                              ← Default inventory file (basic)
+└── roles/                             ← System-wide roles (optional)
+
+/opt/ansible/                          ← Enterprise custom directory (RECOMMENDED)
+├── ansible.cfg                        ← Project-specific config (overrides /etc/ansible/)
+├── inventory/                         ← All inventory files
+│   ├── production/
+│   │   ├── hosts.ini                  ← Production static inventory
+│   │   ├── satellite_inventory.yml    ← Dynamic inventory (Satellite)
+│   │   └── aws_ec2.yml               ← Dynamic inventory (AWS)
+│   ├── uat/
+│   │   └── hosts.ini                  ← UAT inventory
+│   ├── dev/
+│   │   └── hosts.ini                  ← Development inventory
+│   ├── group_vars/                    ← Variables applied to groups
+│   │   ├── all.yml                    ← Variables for ALL hosts
+│   │   ├── prod.yml                   ← Production-specific vars
+│   │   ├── webservers.yml             ← Webserver group vars
+│   │   ├── dbservers.yml              ← Database group vars
+│   │   └── batch1_canary.yml          ← Batch 1 specific vars
+│   └── host_vars/                     ← Variables for specific hosts
+│       ├── webserver01.corp.com.yml
+│       └── dbserver01.corp.com.yml
+├── playbooks/                         ← All playbook files
+│   └── patching/                      ← Patching-specific playbooks
+│       ├── patch_single_server.yml
+│       ├── patch_multiple_servers.yml
+│       ├── patch_enterprise_batches.yml
+│       ├── patch_rollback.yml
+│       ├── patch_validate.yml
+│       └── tasks/                     ← Shared task files
+│           ├── pre_patch_checks.yml
+│           ├── post_patch_checks.yml
+│           ├── app_health_check.yml
+│           └── take_snapshot.yml
+├── roles/                             ← Custom roles
+│   └── linux_patching/
+│       ├── defaults/main.yml
+│       ├── tasks/main.yml
+│       ├── handlers/main.yml
+│       ├── templates/
+│       ├── vars/
+│       └── meta/main.yml
+├── collections/                       ← Ansible collections
+├── vault/                             ← Encrypted secrets
+│   └── credentials.yml
+└── logs/                              ← Ansible execution logs
+    └── ansible.log
+```
+
+**Exact File Paths Summary Table:**
+
+| Purpose | Path on Control Node |
+|---------|---------------------|
+| Ansible config | `/etc/ansible/ansible.cfg` (default) or `/opt/ansible/ansible.cfg` (custom) |
+| Main inventory | `/etc/ansible/hosts` OR `/opt/ansible/inventory/` |
+| Playbooks directory | `/opt/ansible/playbooks/patching/` |
+| Roles directory | `/opt/ansible/roles/` |
+| Group vars | `/opt/ansible/inventory/group_vars/` |
+| Host vars | `/opt/ansible/inventory/host_vars/` |
+| Vault secrets | `/opt/ansible/vault/` |
+| Logs | `/opt/ansible/logs/` |
+
+---
+
+### 6.1.3 Create the Directory Structure
+
+**`[Run on: Ansible Control Node - e.g., ansible-master.company.com]`**
+
+```bash
+# Create the enterprise Ansible directory structure
+sudo mkdir -p /opt/ansible/{inventory/{production,uat,dev,group_vars,host_vars},playbooks/patching/tasks,roles,collections,vault,logs}
+
+# Set ownership to ansible service account
+sudo chown -R ansible_svc:ansible_svc /opt/ansible
+sudo chmod -R 750 /opt/ansible
+sudo chmod 700 /opt/ansible/vault
+
+# Verify structure
+tree /opt/ansible/
+# Or if tree not installed:
+find /opt/ansible -type d | sort
+```
+
+---
+
+### 6.1.4 SSH Key Setup (Control Node → Managed Nodes)
+
+> 🔑 **KEY CONCEPT**: Ansible connects to managed nodes (your 2000 servers) via SSH. You must set up SSH key-based authentication from the control node to every managed node.
+
+**Step 1: Generate SSH Key Pair on Control Node**
+
+**`[Run on: Ansible Control Node - e.g., ansible-master.company.com]`**
+
+```bash
+# Generate SSH key pair for the ansible service account
+sudo -u ansible_svc ssh-keygen -t ed25519 -C "ansible@control-node" -f /home/ansible_svc/.ssh/id_ed25519 -N ""
+
+# Or RSA if ed25519 not supported on older systems:
+sudo -u ansible_svc ssh-keygen -t rsa -b 4096 -C "ansible@control-node" -f /home/ansible_svc/.ssh/id_rsa -N ""
+
+# View the public key (you'll copy this to managed nodes)
+cat /home/ansible_svc/.ssh/id_ed25519.pub
+```
+
+**Step 2: Distribute Public Key to All Managed Nodes**
+
+**`[Run on: Ansible Control Node - e.g., ansible-master.company.com]`**
+
+```bash
+# Method 1: ssh-copy-id (one host at a time - good for initial setup)
+ssh-copy-id -i /home/ansible_svc/.ssh/id_ed25519.pub ansible_svc@webserver01.corp.com
+
+# Method 2: Using a loop for multiple hosts
+for host in webserver0{1..50}.corp.com appserver0{1..80}.corp.com; do
+    ssh-copy-id -i /home/ansible_svc/.ssh/id_ed25519.pub ansible_svc@${host}
+done
+
+# Method 3: Using Satellite/Puppet/Chef to deploy the key (enterprise method)
+# Push the public key content to /home/ansible_svc/.ssh/authorized_keys on all nodes
+
+# Method 4: Using Ansible itself (if you have password auth initially)
+ansible all -m authorized_key -a "user=ansible_svc key='$(cat /home/ansible_svc/.ssh/id_ed25519.pub)'" --ask-pass -b
+```
+
+**Step 3: Configure sudo on Managed Nodes (One-time Setup)**
+
+**`[Run on: Each Managed Node (target server) - or deploy via Satellite/Chef]`**
+
+```bash
+# Create sudoers entry for ansible service account
+echo "ansible_svc ALL=(ALL) NOPASSWD: ALL" | sudo tee /etc/sudoers.d/ansible_svc
+sudo chmod 440 /etc/sudoers.d/ansible_svc
+sudo visudo -c  # Validate syntax
+```
+
+**Step 4: Test SSH Connectivity**
+
+**`[Run on: Ansible Control Node - e.g., ansible-master.company.com]`**
+
+```bash
+# Test single host
+ssh -i /home/ansible_svc/.ssh/id_ed25519 ansible_svc@webserver01.corp.com "hostname; uname -r"
+
+# Test with Ansible ping module (tests SSH + Python on remote)
+ansible all -m ping
+# Expected output:
+# webserver01.corp.com | SUCCESS => {
+#     "changed": false,
+#     "ping": "pong"
+# }
+
+# Test with privilege escalation
+ansible all -m command -a "whoami" -b
+# Expected: root
+```
+
+---
+
+### 6.1.5 Ansible Configuration File
+
+**`[Run on: Ansible Control Node - e.g., ansible-master.company.com]`**
+
+Create `/opt/ansible/ansible.cfg`:
+
+```ini
+[defaults]
+# Inventory
+inventory = /opt/ansible/inventory/production/hosts.ini
+
+# SSH settings
+remote_user = ansible_svc
+private_key_file = /home/ansible_svc/.ssh/id_ed25519
+host_key_checking = False
+
+# Performance
+forks = 50
+timeout = 30
+gathering = smart
+fact_caching = jsonfile
+fact_caching_connection = /tmp/ansible_facts_cache
+fact_caching_timeout = 3600
+
+# Logging
+log_path = /opt/ansible/logs/ansible.log
+
+# Roles
+roles_path = /opt/ansible/roles:/etc/ansible/roles
+
+# Retry files
+retry_files_enabled = True
+retry_files_save_path = /opt/ansible/logs/
+
+# Output
+stdout_callback = yaml
+callbacks_enabled = timer, profile_tasks
+
+[privilege_escalation]
+become = True
+become_method = sudo
+become_user = root
+become_ask_pass = False
+
+[ssh_connection]
+pipelining = True
+ssh_args = -o ControlMaster=auto -o ControlPersist=60s -o StrictHostKeyChecking=no
+```
+
+---
+
+### 6.1.6 Quick Start: Your First Patch Command
+
+**`[Run on: Ansible Control Node - e.g., ansible-master.company.com]`**
+
+```bash
+# 1. Navigate to Ansible directory
+cd /opt/ansible
+
+# 2. Test connectivity to all hosts
+ansible all -m ping
+
+# 3. Check what updates are available (dry run - no changes)
+ansible all -m shell -a "yum check-update 2>/dev/null | tail -20" -b
+
+# 4. Apply security patches to a SINGLE test server (start small!)
+ansible webserver01.corp.com -m yum -a "name=* state=latest security=yes" -b
+
+# 5. Run a full patching playbook
+ansible-playbook /opt/ansible/playbooks/patching/patch_single_server.yml \
+  -e "target_host=webserver01.corp.com" \
+  -e "ticket=CHG-2026-12345"
+```
+
+> ⚠️ **COMMON MISTAKE**: New users try to run `ansible-playbook` on the managed (target) servers. Remember: ALL Ansible commands run ONLY on the control node. Ansible connects to targets over SSH automatically.
+
+---
+
+## 6.2 Ansible Architecture for Enterprise Patching
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
@@ -1754,7 +2140,7 @@ rpm -q <package_name>
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
-## 6.2 Inventory Structure
+## 6.3 Inventory Structure
 
 ### Static Inventory File
 
@@ -1865,7 +2251,7 @@ groups:
   dbservers: "'database' in foreman_hostgroup"
 ```
 
-## 6.3 Group Variables
+## 6.4 Group Variables
 
 ```yaml
 # group_vars/all.yml
@@ -1908,7 +2294,7 @@ lb_drain_time: 30
 
 
 
-## 6.4 Complete Enterprise Playbook – Single Server Patching
+## 6.5 Complete Enterprise Playbook – Single Server Patching
 
 ```yaml
 # playbooks/patch_single_server.yml
@@ -2103,6 +2489,9 @@ lb_drain_time: 30
 ```
 
 **Usage:**
+
+**`[Run on: Ansible Control Node - e.g., ansible-master.company.com]`**
+
 ```bash
 # Patch a single server
 ansible-playbook playbooks/patch_single_server.yml \
@@ -2111,7 +2500,7 @@ ansible-playbook playbooks/patch_single_server.yml \
   -e "patch_security_only=true"
 ```
 
-## 6.5 Complete Enterprise Playbook – Multiple Servers
+## 6.6 Complete Enterprise Playbook – Multiple Servers
 
 ```yaml
 # playbooks/patch_multiple_servers.yml
@@ -2187,6 +2576,9 @@ ansible-playbook playbooks/patch_single_server.yml \
 ```
 
 **Usage:**
+
+**`[Run on: Ansible Control Node - e.g., ansible-master.company.com]`**
+
 ```bash
 # Patch all webservers (10 at a time)
 ansible-playbook playbooks/patch_multiple_servers.yml \
@@ -2203,7 +2595,7 @@ ansible-playbook playbooks/patch_multiple_servers.yml \
 
 
 
-## 6.6 Enterprise Playbook – 2000 Servers in Batches
+## 6.7 Enterprise Playbook – 2000 Servers in Batches
 
 ```yaml
 # playbooks/patch_enterprise_batches.yml
@@ -2441,6 +2833,9 @@ ansible-playbook playbooks/patch_multiple_servers.yml \
 ```
 
 **Usage:**
+
+**`[Run on: Ansible Control Node - e.g., ansible-master.company.com]`**
+
 ```bash
 # Execute full batch patching with manual approval between batches
 ansible-playbook playbooks/patch_enterprise_batches.yml \
@@ -2453,7 +2848,7 @@ ansible-playbook playbooks/patch_enterprise_batches.yml \
   -e "manual_approval=false"
 ```
 
-## 6.7 Shared Task Files
+## 6.8 Shared Task Files
 
 ### tasks/pre_patch_checks.yml
 ```yaml
@@ -2582,7 +2977,7 @@ ansible-playbook playbooks/patch_enterprise_batches.yml \
 
 
 
-## 6.8 Rollback Playbook
+## 6.9 Rollback Playbook
 
 ```yaml
 # playbooks/patch_rollback.yml
@@ -2670,6 +3065,9 @@ ansible-playbook playbooks/patch_enterprise_batches.yml \
 ```
 
 **Usage:**
+
+**`[Run on: Ansible Control Node - e.g., ansible-master.company.com]`**
+
 ```bash
 # Rollback single server
 ansible-playbook playbooks/patch_rollback.yml \
@@ -2688,7 +3086,7 @@ ansible-playbook playbooks/patch_rollback.yml \
   -e "transaction_id=45"
 ```
 
-## 6.9 Validation Playbook
+## 6.10 Validation Playbook
 
 ```yaml
 # playbooks/patch_validate.yml
@@ -2762,6 +3160,9 @@ ansible-playbook playbooks/patch_rollback.yml \
 ```
 
 **Usage:**
+
+**`[Run on: Ansible Control Node - e.g., ansible-master.company.com]`**
+
 ```bash
 # Validate all production servers
 ansible-playbook playbooks/patch_validate.yml \
@@ -2774,7 +3175,7 @@ ansible-playbook playbooks/patch_validate.yml \
 # Report output at: /tmp/patch_validation_YYYY-MM-DD.csv
 ```
 
-## 6.10 Ansible Roles Structure
+## 6.11 Ansible Roles Structure
 
 ```
 roles/
@@ -2859,6 +3260,141 @@ patch_rollback_on_failure: true
 
 
 # Section 7 – Patching Using Chef
+
+> 🚨 **WHERE DO CHEF COMMANDS RUN FROM?**
+>
+> ```
+> ╔══════════════════════════════════════════════════════════════════════════════╗
+> ║                                                                              ║
+> ║   CHEF HAS THREE COMPONENTS - KNOW WHERE EACH COMMAND RUNS:                ║
+> ║                                                                              ║
+> ║   1. CHEF SERVER (e.g., chef-server.company.com)                           ║
+> ║      → Stores cookbooks, roles, environments, node data                    ║
+> ║      → You typically do NOT run commands directly here                      ║
+> ║      → Install: chef-server-core package                                    ║
+> ║                                                                              ║
+> ║   2. CHEF WORKSTATION (e.g., your admin laptop/jump host)                  ║
+> ║      → Where you run knife commands from                                    ║
+> ║      → Where you develop and upload cookbooks                              ║
+> ║      → Install: chef-workstation package                                    ║
+> ║                                                                              ║
+> ║   3. CHEF CLIENT (managed nodes - your 2000 servers)                       ║
+> ║      → Runs chef-client to pull and apply cookbooks                        ║
+> ║      → Install: chef-client package on EVERY managed node                  ║
+> ║                                                                              ║
+> ╚══════════════════════════════════════════════════════════════════════════════╝
+> ```
+
+### Chef Installation & Setup
+
+**Chef Server Installation:**
+
+**`[Run on: Chef Server - e.g., chef-server.company.com]`**
+
+```bash
+# Requirements: RHEL 7/8/9, 4+ CPU, 8+ GB RAM, 50+ GB disk
+# Download and install Chef Server
+sudo rpm -Uvh chef-server-core-<version>.el8.x86_64.rpm
+
+# Configure Chef Server
+sudo chef-server-ctl reconfigure
+
+# Create admin user and organization
+sudo chef-server-ctl user-create admin Admin User admin@company.com 'password' --filename /etc/chef/admin.pem
+sudo chef-server-ctl org-create myorg "My Organization" --association_user admin --filename /etc/chef/myorg-validator.pem
+
+# Verify
+sudo chef-server-ctl status
+```
+
+**Chef Workstation Installation:**
+
+**`[Run on: Chef Workstation - e.g., your admin machine/jump host]`**
+
+```bash
+# RHEL/CentOS:
+sudo rpm -Uvh chef-workstation-<version>.el8.x86_64.rpm
+
+# Ubuntu:
+sudo dpkg -i chef-workstation_<version>_amd64.deb
+
+# Verify
+chef --version
+knife --version
+```
+
+**Chef Client Installation (on managed nodes):**
+
+**`[Run on: Each Managed Node (target server)]`**
+
+```bash
+# Bootstrap from Workstation (installs client automatically):
+knife bootstrap <node_fqdn> -U root -P 'password' --node-name <node_name>
+
+# Or install manually on the node:
+curl -L https://omnitruck.chef.io/install.sh | sudo bash -s -- -v <version>
+```
+
+### Chef File Paths Reference
+
+| Purpose | Path | Located On |
+|---------|------|-----------|
+| Chef Server config | `/etc/opscode/chef-server.rb` | Chef Server |
+| Server data | `/var/opt/opscode/` | Chef Server |
+| Workstation config | `~/.chef/config.rb` (or `~/.chef/knife.rb`) | Chef Workstation |
+| Workstation credentials | `~/.chef/*.pem` | Chef Workstation |
+| Cookbooks (development) | `~/chef-repo/cookbooks/` | Chef Workstation |
+| Roles (development) | `~/chef-repo/roles/` | Chef Workstation |
+| Data bags | `~/chef-repo/data_bags/` | Chef Workstation |
+| Environments | `~/chef-repo/environments/` | Chef Workstation |
+| Client config | `/etc/chef/client.rb` | Managed Nodes |
+| Client key | `/etc/chef/client.pem` | Managed Nodes |
+| Validation key | `/etc/chef/validation.pem` | Managed Nodes |
+| Ohai plugins | `/etc/chef/ohai/plugins/` | Managed Nodes |
+| Chef cache | `/var/chef/cache/` | Managed Nodes |
+| Chef backup | `/var/chef/backup/` | Managed Nodes |
+
+### Chef Workstation Directory Structure
+
+**`[Run on: Chef Workstation]`**
+
+```
+~/chef-repo/                            ← Your Chef repository (on workstation)
+├── .chef/
+│   ├── config.rb                       ← Knife configuration
+│   ├── admin.pem                       ← Admin private key
+│   └── myorg-validator.pem             ← Org validator key
+├── cookbooks/
+│   ├── linux_patching/                 ← Patching cookbook
+│   │   ├── metadata.rb
+│   │   ├── attributes/default.rb
+│   │   ├── recipes/
+│   │   │   ├── default.rb
+│   │   │   ├── pre_check.rb
+│   │   │   ├── patch_security.rb
+│   │   │   ├── reboot.rb
+│   │   │   ├── post_check.rb
+│   │   │   └── rollback.rb
+│   │   ├── templates/
+│   │   ├── files/
+│   │   └── spec/
+│   ├── baseline/
+│   └── hardening/
+├── roles/
+│   ├── webserver.json
+│   ├── dbserver.json
+│   └── patching.json
+├── environments/
+│   ├── development.json
+│   ├── uat.json
+│   └── production.json
+├── data_bags/
+│   ├── credentials/
+│   └── patch_config/
+└── Policyfile.rb
+```
+
+---
 
 ## 7.1 Chef Architecture for Patching
 
@@ -3228,6 +3764,7 @@ end
 ## 7.4 Chef Execution Workflow
 
 ```bash
+# [Run on: Chef Workstation - e.g., your admin machine]
 # Upload cookbook to Chef Server
 knife cookbook upload linux_patching
 

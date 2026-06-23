@@ -11,6 +11,7 @@
 [![Satellite](https://img.shields.io/badge/Red%20Hat-Satellite-CC0000.svg)](https://www.redhat.com/en/technologies/management/satellite)
 [![Servers](https://img.shields.io/badge/Scale-2000%2B%20Servers-blue.svg)]()
 [![VMware](https://img.shields.io/badge/VMware-vCenter%20Ready-607078.svg)](https://www.vmware.com/)
+[![Windows](https://img.shields.io/badge/Windows-Server%202016--2025-0078D6.svg)](https://www.microsoft.com/en-us/windows-server)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
 
 <br/>
@@ -19,7 +20,7 @@
 
 **A comprehensive, battle-tested enterprise patching runbook designed for large-scale Linux infrastructure operations.**
 
-[📖 Read the Runbook](./Enterprise_Linux_Patching_Runbook.md) · [🖥️ VMware VM Guide](./VMware_VM_Patching_Guide.md) · [🐛 Report Issue](https://github.com/yadakrishna245/Patching_Process/issues) · [💡 Request Feature](https://github.com/yadakrishna245/Patching_Process/issues)
+[📖 Read the Runbook](./Enterprise_Linux_Patching_Runbook.md) · [🖥️ VMware VM Guide](./VMware_VM_Patching_Guide.md) · [🪟 Windows Guide](./Windows_Patch_Management_Guide.md) · [🐛 Report Issue](https://github.com/yadakrishna245/Patching_Process/issues) · [💡 Request Feature](https://github.com/yadakrishna245/Patching_Process/issues)
 
 </div>
 
@@ -258,8 +259,9 @@ This runbook is designed for multiple skill levels:
 Patching_Process/
 │
 ├── 📄 README.md                              ← You are here
-├── 📖 Enterprise_Linux_Patching_Runbook.md   ← Complete Runbook (150+ pages)
+├── 📖 Enterprise_Linux_Patching_Runbook.md   ← Complete Linux Runbook (150+ pages)
 ├── 🖥️ VMware_VM_Patching_Guide.md            ← VMware/vCenter VM Patching Guide
+├── 🪟 Windows_Patch_Management_Guide.md      ← Windows Server Patching (SCCM/WSUS/Intune/Ansible/PDQ)
 │
 └── (Future additions)
     ├── 📁 ansible/                           ← Ansible playbooks
